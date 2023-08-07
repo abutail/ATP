@@ -1,0 +1,102 @@
+AWS WAF ATP Response Code incoming request
+
+Use Case 1: Disrupt Account takeover attempts with stolen credentials
+
+In this example, you will learn how to configure your AWS WAF with the ATP managed rule and stop repeated login attempts that use stolen credentials that might lead to fraudulent activity. ATP checks email and password combinations against its stolen credential database, which is updated regularly as new leaked credentials are found on the dark web. ATP aggregates data by IP address and client session, to detect and block clients that send too many requests of a suspicious nature. Figure 1 shows an overview of this workflow.
+
+Figure 1 :
+                                                        Attacker--- >Cloudfront----->Origin
+                                                                                       |
+                                                             AWS WAF ATP Monitors the incoming request
+
+
+To use the AWSManagedRulesATPRuleSet rule group in your web ACL:
+
+1. Add the AWS managed rule group, AWSManagedRulesATPRuleSet to your web ACL, 
+2. Edit the rule group settings ,In the Rule group configuration pane, provide the information that the ATP rule group uses to inspect login requests. For Login path, provide the path of the login endpoint for your application. For example, for the URL https://example.com/web/login, you would provide the path /web/login. Login paths that start with the path that you provide are considered a match. 
+3. For Request inspection, specify how your application accepts login attempts by providing the request payload type and the names of the fields within the request body where the username and password are provided. Your specification of the field names depends on the payload type.
+    1.  JSON payload type – Specify the field names in JSON pointer syntax. For example, for the following example JSON payload, the username field specification is /login/username and the password field specification is /login/password.
+            {        "login": 
+         {             "username": "THE_USERNAME",
+                    "password": "THE_PASSWORD"    
+             }
+            }
+    2.    FORM_ENCODED payload type – Use the HTML form names.    For example, for an HTML form with input elements named username1 and password1, the username field specification is username1 and the password field specification is password1.
+4. Save your changes to the web ACL.
+
+To test the above configuration
+
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Login Form</title>
+  <script>
+    function validateForm() {
+      var Username or emailaddress = document.getElementById("usernameOrEmail").value;
+      var password = document.getElementById("password").value;
+
+      if (Username or emailaddress === "" || password === "") {
+        alert("Please fill in all fields.");
+        return false;
+      }
+
+      return true;
+    }
+  </script>
+</head>
+<body>
+  <h2>Login Form</h2>
+  <form action="/login" method="POST" onsubmit="return validateForm()">
+    <label for="Username or emailaddress">Username or Email:</label>
+    <input type="text" id="usernameOrEmail" name="usernameOrEmail" required><br><br>
+    <label for="password">Password:</label>
+    <input type="password" id="password" name="password" required><br><br>
+    <label for="remember">Remember Me:</label>
+    <input type="checkbox" id="remember" name="remember"><br><br>
+    <input type="submit" value="Login">
+  </form>
+  <p><a href="/forgot-password">Lost your password?</a></p>
+</body>
+</html>
+
+
+1. Perform a login attempt with test compromised credentials and check that the rule group matches against them as expected.
+2. Log in to your protected resource's login page using the following AWS WAF test credential pair:
+3. User: WAF_TEST_CREDENTIAL@wafexample.com
+4. Password: WAF_TEST_CREDENTIAL_PASSWORD
+5. These test credentials are categorized as compromised credentials, and the ATP managed rule group will add the awswaf:managed:aws:atp:signal:credential_compromised label to the login request, which you can see in the logs.
+6. In your web ACL logs, look for the awswaf:managed:aws:atp:signal:credential_compromised label in the labels field on the log entries for your test login web requests. For information about logging, see Logging web ACL traffic.
+
+
+
+
+
+
+ Use Case 2: Prevent Account takeover attempts with non-compromised credentials with response inspection
+
+In this example, you will learn how to configure your AWS WAF with the ATP managed rule and stop repeated unsuccessful login attempts that might lead to fraudulent activity.For CloudFront distributions, in addition to inspecting incoming login requests, the ATP rule group inspects your application's responses to login attempts, to track success and failure rates. Using this information, ATP can temporarily block client sessions or IP addresses that have too many login failure. Figure 3 shows an overview of this workflow.
+
+Figure 2 :
+                                                        Attacker--- >Cloudfront <-----> Origin
+                                                                                       |
+                                                             AWS WAF ATP Monitors Response
+
+ To use the AWSManagedRulesATPRuleSet rule group in your web ACL:
+
+1. Add the AWS managed rule group, AWSManagedRulesATPRuleSet to your web ACL, 
+2. Edit the rule group settings ,In the Rule group configuration pane, provide the information that the ATP rule group uses to inspect login requests. For Login path, provide the path of the login endpoint for your application. For example, for the URL https://example.com/web/login, you would provide the path /web/login. Login paths that start with the path that you provide are considered a match. 
+3. For Request inspection, specify how your application accepts login attempts by providing the request payload type and the names of the fields within the request body where the username and password are provided. Your specification of the field names depends on the payload type.
+    1.  JSON payload type – Specify the field names in JSON pointer syntax. For example, for the following example JSON payload, the username field specification is /login/username and the password field specification is /login/password.
+            {        "login": 
+         {             "username": "THE_USERNAME",
+                    "password": "THE_PASSWORD"    
+             }
+            }
+    2.    FORM_ENCODED payload type – Use the HTML form names.    For example, for an HTML form with input elements named username1 and password1, the username field specification is username1 and the password field specification is password1.
+4. Under Response inspection, specify how your application indicates success or failure in its responses to login attempts.
+5. Specify a single component in the login response that you want ATP to inspect. For the Body and JSON component types, AWS WAF can inspect the first 65,536 bytes (64 KB) of the component.
+6. Provide your inspection criteria for the component type, as indicated by the interface. You must provide both success and failure criteria to inspect for in the component.For example, say your application indicates the status of a login attempt in the status code of the response, and uses 200 OK for success and 401 Unauthorized or 403 Forbidden for failure. 
+7. You would set the response inspection Component type to Status code, then in the Success text box enter 200 and in the Failure text box, enter 401 on the first line and 403 on the second.
+8. Save your changes to the web ACL.
+
